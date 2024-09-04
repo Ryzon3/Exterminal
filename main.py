@@ -68,12 +68,13 @@ if __name__ == '__main__':
     
     console.clear()
     console.print("[dodger_blue1]Welcome to [/dodger_blue1][b hot_pink2]Exterminal[/b hot_pink2][dodger_blue1]![/dodger_blue1]")
+    console.print("[dodger_blue1 i][b hot_pink2]Exterminal[/b hot_pink2] is a smart terminal that can execute human-readable commands, remember information, answer questions, and more![/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type any command to execute it or type '[u bright_red]exit[/u bright_red]' to exit. [/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type '[u bright_red]clear[/u bright_red]' to clear the terminal. [/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type '[u bright_red]help[/u bright_red]' to get help. [/dodger_blue1 i]")
     console.print("")
     while True:
-        inp = console.input("[dodger_blue1]Exterminal[/dodger_blue1] > ")
+        inp = console.input("[dodger_blue1][b hot_pink2]Exterminal[/b hot_pink2][/dodger_blue1] > ")
         world_model['directory'] = os.getcwd()
         world_model['files'] = os.listdir()
         # Trim messages if overall content is too long
@@ -81,7 +82,7 @@ if __name__ == '__main__':
             messages = messages[0:] + messages[-3:]
         
         if inp == "exit" or inp == "e":
-            console.print("[dodger_blue1]Exiting Exterminal...[/dodger_blue1]")
+            console.print("[dodger_blue1]Exiting [b hot_pink2]Exterminal[/b hot_pink2]...[/dodger_blue1]")
             break
         
         if inp == "clear" or inp == "c":
@@ -96,9 +97,9 @@ if __name__ == '__main__':
             continue
         
         if inp == "help" or inp == "h":
-            console.print("[dodger_blue1]Exterminal is a smart terminal that can execute human-readable commands.[/dodger_blue1]")
-            console.print("[dodger_blue1]You can type any command and Exterminal will try to execute it for you.[/dodger_blue1]")
-            console.print("[dodger_blue1]You can also type '[u bright_red]exit[/u bright_red]' to exit Exterminal or '[u bright_red]clear[/u bright_red]' to clear the terminal.[/dodger_blue1]")
+            console.print("[dodger_blue1 i][b hot_pink2]Exterminal[/b hot_pink2] is a smart terminal that can execute human-readable commands, remember information, answer questions, and more![/dodger_blue1 i]")
+            console.print("[dodger_blue1]You can type any command and [b hot_pink2]Exterminal[/b hot_pink2] will try to execute it for you.[/dodger_blue1]")
+            console.print("[dodger_blue1]You can also type '[u bright_red]exit[/u bright_red]' to exit [b hot_pink2]Exterminal[/b hot_pink2] or '[u bright_red]clear[/u bright_red]' to clear the terminal.[/dodger_blue1]")
             console.print("")
             continue
         
@@ -178,4 +179,4 @@ if __name__ == '__main__':
                 # Auto fix the error
                 console.print("[dodger_blue1]Auto fixing the error...[/dodger_blue1]")
         # Print output for testing
-        # console.print(output)   
+        console.print(output)   
