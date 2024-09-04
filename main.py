@@ -41,7 +41,7 @@ Thus the commands will be of the following format:
 "EXECUTE: the command to be run in a shell"
 "CHECK AND PAUSE: Do not pass any additional commands, just pause and rethink"
 "EXECUTE AND PAUSE: the command to be run in a shell and then pause and rethink"
-"ANSWER: A command to answer a user question"
+"ANSWER: A command to answer a user QUESTION"
 "NOINFO: A command if the user doesn't provide enough information to execute the command"
 Only add commands for the current user query, assume previous commands have been executed.
 If the user query is 
@@ -81,13 +81,13 @@ if __name__ == '__main__':
         world_model['files'] = os.listdir()
         # Trim messages if overall content is too long
         if sum([len(x['content']) for x in messages]) > 10000:
-            messages = messages[0] + messages[-3:]
+            messages = messages[0:] + messages[-3:]
         
-        if inp == "exit":
+        if inp == "exit" or inp == "e":
             console.print("[dodger_blue1]Exiting Exterminal...[/dodger_blue1]")
             break
         
-        if inp == "clear":
+        if inp == "clear" or inp == "c":
             console.clear()
             messages = [
                 {'role': 'system', 'content': system_prompt},
@@ -97,7 +97,7 @@ if __name__ == '__main__':
         if inp == "":
             continue
         
-        if inp == "help":
+        if inp == "help" or inp == "h":
             console.print("[dodger_blue1]Exterminal is a smart terminal that can execute human-readable commands.[/dodger_blue1]")
             console.print("[dodger_blue1]You can type any command and Exterminal will try to execute it for you.[/dodger_blue1]")
             console.print("[dodger_blue1]You can also type '[u bright_red]exit[/u bright_red]' to exit Exterminal or '[u bright_red]clear[/u bright_red]' to clear the terminal.[/dodger_blue1]")
