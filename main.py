@@ -31,6 +31,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 # Import terminal color/formatting library
 import rich
+import rich.text
 
 system_prompt = '''
 You are the Exterminal system. Your job is to recognize user input and figure out how to exectute the commands in a Linux based terminal.
@@ -57,24 +58,36 @@ You will output a json object with the following format:
 }
 '''
 
+from prompt_toolkit import PromptSession
+from prompt_toolkit.history import FileHistory
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.formatted_text import HTML
+
+
 if __name__ == '__main__':
     load_dotenv()
     client = OpenAI()
     console = rich.console.Console(color_system="256")
+    
+    session = PromptSession(
+        HTML('<style fg="#d75faf">Exterminal > </style>'),
+        history=FileHistory(os.path.join(os.path.expanduser('~'), ".exterminal_history")),
+        auto_suggest=AutoSuggestFromHistory(),
+    )
     messages = [
         {'role': 'system', 'content': system_prompt},
     ]
     world_model = {}
-    
+            
     console.clear()
-    console.print("[dodger_blue1]Welcome to [/dodger_blue1][b hot_pink2]Exterminal[/b hot_pink2][dodger_blue1]![/dodger_blue1]")
+    console.rule("[b hot_pink2]Exterminal[/b hot_pink2]", style="dodger_blue1")
     console.print("[dodger_blue1 i][b hot_pink2]Exterminal[/b hot_pink2] is a smart terminal that can execute human-readable commands, remember information, answer questions, and more![/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type any command to execute it or type '[u bright_red]exit[/u bright_red]' to exit. [/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type '[u bright_red]clear[/u bright_red]' to clear the terminal. [/dodger_blue1 i]")
     console.print("[dodger_blue1 i]Type '[u bright_red]help[/u bright_red]' to get help. [/dodger_blue1 i]")
     console.print("")
     while True:
-        inp = console.input("[dodger_blue1][b hot_pink2]Exterminal[/b hot_pink2][/dodger_blue1] > ")
+        inp = session.prompt()
         world_model['directory'] = os.getcwd()
         world_model['files'] = os.listdir()
         # Trim messages if overall content is too long
@@ -87,6 +100,7 @@ if __name__ == '__main__':
         
         if inp == "clear" or inp == "c":
             console.clear()
+            console.rule("[b hot_pink2]Exterminal[/b hot_pink2]", style="dodger_blue1")
             messages = [
                 {'role': 'system', 'content': system_prompt},
             ]
@@ -106,13 +120,13 @@ if __name__ == '__main__':
         msg = "WORLD_MODEL:\n" + str(world_model) + "\n\n\n" + "USER_INPUT" + inp
         messages.append({'role': 'user', 'content': inp})
         
-        response = client.chat.completions.create(
-            model='gpt-4o-2024-08-06',
-            response_format={ "type": "json_object" },
-            messages=messages,
-            temperature=0
-        )
-                
+        with console.status("Querying LLM...", spinner="bouncingBall", spinner_style="hot_pink2"):
+            response = client.chat.completions.create(
+                model='gpt-4o-2024-08-06',
+                response_format={ "type": "json_object" },
+                messages=messages,
+                temperature=0
+            )
         # Parse output
         output = response.choices[0].message.content
         output = json.loads(output)
@@ -179,4 +193,4 @@ if __name__ == '__main__':
                 # Auto fix the error
                 console.print("[dodger_blue1]Auto fixing the error...[/dodger_blue1]")
         # Print output for testing
-        console.print(output)   
+        # console.print(output)   
