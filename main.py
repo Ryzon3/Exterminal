@@ -35,12 +35,10 @@ import rich
 system_prompt = '''
 You are the Exterminal system. Your job is to recognize user input and figure out how to exectute the commands in a Linux based terminal.
 You will parse the user input and calculate your thoughts on it. You will through that then be able to execute several commands in a linux shell to execute the user's command.
-You can also at any time check a world model for any information you might need.
 If you don't find what you need you can execute a command to check the information yourself.
 Thus the commands will be of the following format:
 "EXECUTE: the command to be run in a shell"
-"CHECK AND PAUSE: Do not pass any additional commands, just pause and rethink"
-"EXECUTE AND PAUSE: the command to be run in a shell and then pause and rethink"
+"EXECUTE AND CONFIRM: the command to be run in a shell and ask user to confirm this command, pause if this command looks like it will have a big impact"
 "ANSWER: A command to answer a user QUESTION"
 "NOINFO: A command if the user doesn't provide enough information to execute the command"
 Only add commands for the current user query, assume previous commands have been executed.
@@ -53,9 +51,8 @@ You will output a json object with the following format:
     },
     "commands": [
         Example1-> "EXECUTE: command1",
-        Example2-> "NOINFO",
-        Example3-> "CHECK AND PAUSE",
-        Example3-> "EXECUTE AND PAUSE: command2",
+        Example2-> "NOINFO:",
+        Example3-> "EXECUTE AND CONFIRM: command2",
     ]
 }
 '''
@@ -92,6 +89,7 @@ if __name__ == '__main__':
             messages = [
                 {'role': 'system', 'content': system_prompt},
             ]
+            world_model = {}
             continue
         
         if inp == "":
@@ -108,7 +106,7 @@ if __name__ == '__main__':
         messages.append({'role': 'user', 'content': inp})
         
         response = client.chat.completions.create(
-            model='gpt-4o',
+            model='gpt-4o-2024-08-06',
             response_format={ "type": "json_object" },
             messages=messages,
             temperature=0
@@ -117,6 +115,10 @@ if __name__ == '__main__':
         # Parse output
         output = response.choices[0].message.content
         output = json.loads(output)
+        
+        # Update world model
+        if 'world_model' in output:
+            world_model.update(output['world_model'])
         
         error = None
         # Get all "EXECUTE" commands and run them
@@ -133,6 +135,8 @@ if __name__ == '__main__':
                     error = result.stderr.decode("utf-8")
                     break
                 result = result.stdout.decode("utf-8")
+                if result == "":
+                    result = "Command executed successfully."
                 console.print(f"[dodger_blue1]Output:[/dodger_blue1] [hot_pink2]{result}[/hot_pink2]")
                 messages.append({'role': 'assistant', 'content': f"COMMAND: {command}\nOUTPUT: {result}"})
             elif "ANSWER:" in command:
@@ -144,6 +148,28 @@ if __name__ == '__main__':
                 console.print("[dodger_blue1]There is not enough information to execute the command. Please resend the command with more information or a different command.[/dodger_blue1]")
                 console.print("")
                 messages.append({'role': 'assistant', 'content': "NOINFO"})
+            elif "EXECUTE AND CONFIRM" in command:
+                command = command.replace("EXECUTE AND CONFIRM: ", "")
+                # Ask user to confirm the command
+                ans = console.input(f"[dodger_blue1]Would you like to run the command: [hot_pink2]{command}[/hot_pink2]? ([green1]y[/green1]/[bright_red]n[/bright_red])[/dodger_blue1]")
+                if 'n' in ans.lower():
+                    # skip the command
+                    messages.append({'role': 'assistant', 'content': f"SKIPPED: {command}"})
+                    continue
+                # run the command
+                console.print(f"[dodger_blue1]Running command:[/dodger_blue1] [hot_pink2]{command}[/hot_pink2]")
+                # Run command here using subprocess and capture output
+                result = subprocess.run(command, shell=True, capture_output=True)
+                # Check if there was an error
+                if result.returncode != 0:
+                    # If there is an error pause execution and ask if user would like to auto fix or not
+                    error = result.stderr.decode("utf-8")
+                    break
+                result = result.stdout.decode("utf-8")
+                if result == "":
+                    result = "Command executed successfully."
+                console.print(f"[dodger_blue1]Output:[/dodger_blue1] [hot_pink2]{result}[/hot_pink2]")
+                messages.append({'role': 'assistant', 'content': f"COMMAND: {command}\nOUTPUT: {result}"})
         if error:
             # Pause and ask user if they would like to auto fix the error
             console.print(f"[bright_red]Error:[/bright_red] {error}")
@@ -153,11 +179,3 @@ if __name__ == '__main__':
                 console.print("[dodger_blue1]Auto fixing the error...[/dodger_blue1]")
         # Print output for testing
         # console.print(output)   
-        
-        
-'''
-Testing Exterminal commands and expected output:
-1. "open google"
-2. "open terminal"
-3. "create a new file called 'test.py' and write 'print('Hello, World!')'"
-'''
