@@ -118,7 +118,7 @@ if __name__ == '__main__':
         output = response.choices[0].message.content
         output = json.loads(output)
         
-        error = False
+        error = None
         # Get all "EXECUTE" commands and run them
         for command in output['commands']:
             if "EXECUTE:" in command:
@@ -130,7 +130,7 @@ if __name__ == '__main__':
                 # Check if there was an error
                 if result.returncode != 0:
                     # If there is an error pause execution and ask if user would like to auto fix or not
-                    error = True
+                    error = result.stderr.decode("utf-8")
                     break
                 result = result.stdout.decode("utf-8")
                 console.print(f"[dodger_blue1]Output:[/dodger_blue1] [hot_pink2]{result}[/hot_pink2]")
@@ -146,6 +146,7 @@ if __name__ == '__main__':
                 messages.append({'role': 'assistant', 'content': "NOINFO"})
         if error:
             # Pause and ask user if they would like to auto fix the error
+            console.print(f"[bright_red]Error:[/bright_red] {error}")
             ans = console.input("[dodger_blue1]An error occured while running the command.\nWould you like to auto fix it?([green1]y[/green1]/[bright_red]n[/bright_red])[/dodger_blue1]")
             if 'y' in ans.lower():
                 # Auto fix the error
