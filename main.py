@@ -176,7 +176,7 @@ def fixError(console, command, messages, error, client, i):
             # Parse output
             output = response.choices[0].message.content
             output = json.loads(output)
-        console.print(output)
+
         n_command = output['commands'][i]
         if "ANSWER:" in n_command:
             console.print("[dodger_blue1]Sorry, I can't fix this error with the current information. Please try a different command or provide more information.[/dodger_blue1]")
