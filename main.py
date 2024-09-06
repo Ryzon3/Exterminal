@@ -13,8 +13,8 @@ import sqlite3
 import time
 
 class PromptCacheManager:
-    def __init__(self):
-        self.conn = sqlite3.connect('prompt_cache.db')
+    def __init__(self, db_name='.exterminal_cache.db'):
+        self.conn = sqlite3.connect(os.path.join(os.path.expanduser('~'), db_name))
         self.c = self.conn.cursor()
         
         # Create table for storing cached prompts
