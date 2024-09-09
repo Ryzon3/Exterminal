@@ -244,17 +244,21 @@ if __name__ == '__main__':
             console.print("")
             continue
         
-        if inp == 'messages':
+        if inp == 'messages' or inp == 'm':
             console.print("[dodger_blue1]Messages:[/dodger_blue1]")
             console.print(messages[1:], style="hot_pink2")
             console.print("")
             continue
         
         if inp == "help" or inp == "h":
-            console.print("[dodger_blue1 i][b hot_pink2]Exterminal[/b hot_pink2] is a smart terminal that can execute human-readable commands, remember information, answer questions, and more![/dodger_blue1 i]")
-            console.print("[dodger_blue1]You can type any command and [b hot_pink2]Exterminal[/b hot_pink2] will try to execute it for you.[/dodger_blue1]")
-            console.print("[dodger_blue1]You can also type '[u bright_red]exit[/u bright_red]' to exit [b hot_pink2]Exterminal[/b hot_pink2] or '[u bright_red]clear[/u bright_red]' to clear the terminal.[/dodger_blue1]")
-            console.print("")
+            # list out all the commands that can be used
+            console.print("[dodger_blue1]Commands:[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]exit[/hot_pink2] or [hot_pink2]e[/hot_pink2] - Exit the terminal[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]clear[/hot_pink2] or [hot_pink2]c[/hot_pink2] - Clear the terminal[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]world_model[/hot_pink2] or [hot_pink2]wm[/hot_pink2] - View the world model[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]messages[/hot_pink2] or [hot_pink2]m[/hot_pink2] - View the messages[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]help[/hot_pink2] or [hot_pink2]h[/hot_pink2] - View this help message[/dodger_blue1]")
+            console.print("[dodger_blue1][hot_pink2]--force-llm[/hot_pink2] - Force use LLM instead of cached response[/dodger_blue1]")
             continue
         skip_cache = False
         output = None
@@ -342,8 +346,5 @@ if __name__ == '__main__':
             if escape:
                 break
         
-        if int(time.time()) == 0:
+        if int(time.time()) % 15  == 0:
             cache_manager.remove_expired_entries()
-
-        # Print output for testing
-        # console.print(output)   
