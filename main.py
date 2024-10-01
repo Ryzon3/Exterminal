@@ -220,8 +220,8 @@ if __name__ == '__main__':
         world_model['directory'] = os.getcwd()
         world_model['directory contents'] = os.listdir()
         # Trim messages if overall content is too long
-        while sum([len(x['content']) for x in messages]) > 10000:
-            messages = messages[0:] + messages[1:]
+        while sum([len(x['content']) for x in messages]) > 50000:
+            messages = messages[0:] + messages[:-1]
         
         if inp == "exit" or inp == "e":
             console.print("[dodger_blue1]Exiting [b hot_pink2]Exterminal[/b hot_pink2]...[/dodger_blue1]")
