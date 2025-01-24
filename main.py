@@ -4,6 +4,7 @@ import subprocess
 from openai import OpenAI
 from dotenv import load_dotenv
 import rich
+from rich.console import Console
 import rich.text
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
@@ -11,6 +12,8 @@ from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.formatted_text import HTML
 import sqlite3
 import time
+
+model_name = "gpt-4o"
 
 class PromptCacheManager:
     def __init__(self, db_name='.exterminal_cache.db'):
@@ -168,7 +171,7 @@ def fixError(console, command, messages, error, client, i):
         # Now we will query the LLM to fix the error
         with console.status("Querying LLM to fix error...", spinner="bouncingBall", spinner_style="hot_pink2"):
             response = client.chat.completions.create(
-                model='gpt-4o-2024-08-06',
+                model=model_name,
                 response_format={ "type": "json_object" },
                 messages=nmessages,
                 temperature=0
@@ -194,7 +197,8 @@ def fixError(console, command, messages, error, client, i):
 if __name__ == '__main__':
     load_dotenv()
     client = OpenAI()
-    console = rich.console.Console(color_system="256")
+    print(rich)
+    console = Console(color_system="256")
     cache_manager = PromptCacheManager()
     
     session = PromptSession(
@@ -221,7 +225,7 @@ if __name__ == '__main__':
         world_model['directory contents'] = os.listdir()
         # Trim messages if overall content is too long
         while sum([len(x['content']) for x in messages]) > 50000:
-            messages = messages[0:] + messages[:-1]
+            messages.pop(1)
         
         if inp == "exit" or inp == "e":
             console.print("[dodger_blue1]Exiting [b hot_pink2]Exterminal[/b hot_pink2]...[/dodger_blue1]")
@@ -277,7 +281,7 @@ if __name__ == '__main__':
         if not output:
             with console.status("Querying LLM...", spinner="bouncingBall", spinner_style="hot_pink2"):
                 response = client.chat.completions.create(
-                    model='gpt-4o-2024-08-06',
+                    model=model_name,
                     response_format={ "type": "json_object" },
                     messages=messages,
                     temperature=0
