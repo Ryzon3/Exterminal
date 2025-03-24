@@ -1,1 +1,3 @@
 # Exterminal
+
+LLM integrated terminal.
