@@ -172,15 +172,14 @@ class CommandExecutor:
                 text=True, bufsize=1, executable="/bin/bash" # Explicitly use bash
             )
 
+            # Capture stdout and stderr without printing line-by-line immediately
             if process.stdout:
                 for line in iter(process.stdout.readline, ''):
-                    self.console.print(f"[dodger_blue1]Output:[/dodger_blue1] {line.strip()}")
                     full_stdout_list.append(line)
                 process.stdout.close()
 
             if process.stderr:
-                for line in iter(process.stderr.readline, ''): # Ensure stderr is also fully read
-                    self.console.print(f"[bright_red]Error Output:[/bright_red] {line.strip()}")
+                for line in iter(process.stderr.readline, ''):
                     full_stderr_list.append(line)
                 process.stderr.close()
 
@@ -188,6 +187,15 @@ class CommandExecutor:
 
             stdout_str: str = "".join(full_stdout_list)
             stderr_str: str = "".join(full_stderr_list)
+
+            # Now print the consolidated output with headers only if there is content
+            if stdout_str:
+                self.console.print(f"[dodger_blue1]Output:[/dodger_blue1]")
+                self.console.print(stdout_str.strip()) # strip() to remove trailing newline from the block
+            
+            if stderr_str:
+                self.console.print(f"[bright_red]Error Output:[/bright_red]")
+                self.console.print(stderr_str.strip()) # strip() to remove trailing newline from the block
 
             if process.returncode == 0:
                 status_msg: str = "Command executed successfully."

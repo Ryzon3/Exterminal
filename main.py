@@ -54,6 +54,24 @@ if __name__ == '__main__':
     load_dotenv()
     console: Console = Console(color_system="256")
     
+    # Define list of simple commands that should always bypass the LLM cache
+    SIMPLE_COMMANDS_TO_ALWAYS_RUN_FRESH: List[str] = [
+        "ls", "dir",      # Directory listing
+        "pwd",            # Print working directory
+        "cd",             # Change directory
+        "date",           # Current date and time
+        "whoami",         # Current user
+        "hostname",       # System hostname
+        "uptime",         # System uptime
+        "free",           # Memory usage (base command)
+        "df",             # Disk space usage (base command)
+        "echo",           # Echo arguments
+        "top",            # Process monitoring (base command)
+        "ps",             # Process status (base command)
+        # Note: commands like 'clear', 'history' are handled by Exterminal before LLM.
+        # If they were to reach LLM, bypassing cache would be harmless.
+    ]
+    
     try:
         app_settings: Dict[str, Any] = load_config()
         command_executor: CommandExecutor = CommandExecutor(console=console)
@@ -126,21 +144,58 @@ if __name__ == '__main__':
                 console.print("[dodger_blue1]Available Commands:[/dodger_blue1]")
                 console.print("- [hot_pink2]exit, e, quit, q[/hot_pink2]: Exit Exterminal.")
                 console.print("- [hot_pink2]clear, c, cls[/hot_pink2]: Clear the terminal screen.")
+                console.print("- [hot_pink2]clear-cache, cc[/hot_pink2]: Clear the LLM prompt cache.")
                 console.print("- [hot_pink2]world_model, wm, world[/hot_pink2]: View the current world model.")
                 console.print("- [hot_pink2]messages, m, history[/hot_pink2]: View the messages history.")
                 console.print("- [hot_pink2]help, h, ?[/hot_pink2]: Display this help message.")
                 console.print("- [hot_pink2]--force-llm[/hot_pink2]: (Append to your prompt) Force a new LLM query, bypassing cache.")
+                console.print("- [hot_pink2]--verbose[/hot_pink2]: (Append to your prompt) Display LLM thoughts for the command processing.")
                 console.print("")
                 continue
 
-            force_llm_query: bool = False
-            if '--force-llm' in current_user_input:
-                current_user_input = current_user_input.replace('--force-llm', '').strip()
-                force_llm_query = True
+            # Check for internal commands before anything else
+            if current_user_input.lower() in ["clear-cache", "cc"]:
+                llm_handler.clear_entire_cache()
+                # The clear_entire_cache method in LLMHandler now prints its own confirmation.
+                messages_history.append({'role': 'system', 'content': 'User cleared LLM prompt cache.'})
+                continue
 
+            # Process user input for LLM and flags
+            cleaned_user_input_for_llm: str = current_user_input
+            
+            verbose_output_requested: bool = False
+            if '--verbose' in cleaned_user_input_for_llm:
+                cleaned_user_input_for_llm = cleaned_user_input_for_llm.replace('--verbose', '').strip()
+                verbose_output_requested = True
+
+            force_llm_query: bool = False
+            user_explicitly_forced_llm: bool = False
+
+            if '--force-llm' in cleaned_user_input_for_llm:
+                cleaned_user_input_for_llm = cleaned_user_input_for_llm.replace('--force-llm', '').strip()
+                force_llm_query = True
+                user_explicitly_forced_llm = True
+            
+            # If input became empty after stripping --force-llm (e.g. user typed only "--force-llm"),
+            # and it was explicitly forced, cleaned_user_input_for_llm will be empty, and force_llm_query will be true.
+            # This is fine, LLM will receive an empty but forced query.
+            # If input was empty to begin with, "if not current_user_input.strip(): continue" (line 107) handles it.
+
+            # Check for simple commands to bypass cache, if not already forced by the user.
+            if not user_explicitly_forced_llm and cleaned_user_input_for_llm.strip():
+                command_parts: List[str] = cleaned_user_input_for_llm.split()
+                # command_parts cannot be empty here due to cleaned_user_input_for_llm.strip()
+                base_command: str = command_parts[0].lower()
+
+                if base_command in SIMPLE_COMMANDS_TO_ALWAYS_RUN_FRESH:
+                    force_llm_query = True # Ensure cache is bypassed
+                    console.print(f"[dim i]Bypassing cache for simple command: '{cleaned_user_input_for_llm}'[/dim i]")
+
+            # Ensure that current_user_input (which is passed to LLM) is the cleaned version
+            # The messages_history already contains the original raw user input.
             llm_response_json: Optional[Dict[str, Any]] = llm_handler.get_llm_response(
-                messages_history=messages_history[:-1],
-                current_user_input=current_user_input,
+                messages_history=messages_history[:-1], # History before current raw user input
+                current_user_input=cleaned_user_input_for_llm, # Cleaned input for LLM
                 world_model=world_model,
                 force_new_response=force_llm_query
             )
@@ -173,6 +228,10 @@ if __name__ == '__main__':
             if llm_response_json and 'world_model' in llm_response_json and isinstance(llm_response_json['world_model'], dict):
                 assistant_turn_content_dict["world_model_updates"] = llm_response_json['world_model']
             messages_history.append({'role': 'assistant', 'content': json.dumps(assistant_turn_content_dict)})
+
+            if verbose_output_requested:
+                # llm_thoughts is already extracted and handles None llm_response_json correctly
+                console.print(f"[dim cyan]LLM Thoughts:[/dim cyan]\n[italic cyan]{llm_thoughts}[/italic cyan]\n")
 
             commands_to_process: List[str] = list(extracted_commands_list) # Use the validated list
             current_command_idx: int = 0

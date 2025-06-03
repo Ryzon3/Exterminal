@@ -111,6 +111,28 @@ class PromptCacheManager:
         except sqlite3.Error as e:
             self.console.print(f"[bright_red]SQLite Error removing expired cache entries: {e}[/bright_red]")
 
+    def clear_all_entries(self) -> bool:
+        """
+        Removes all entries from the prompt_cache table.
+
+        Returns:
+            True if successful, False otherwise.
+        """
+        if not self.conn or not self.cursor:
+            self.console.print("[dim bright_red]Cache database not available. Cannot clear cache.[/dim]")
+            return False
+        try:
+            self.cursor.execute("DELETE FROM prompt_cache")
+            self.conn.commit()
+            # Check if vacuuuming is beneficial here or should be periodic. For now, just delete.
+            # self.cursor.execute("VACUUM") # To reclaim disk space
+            # self.conn.commit()
+            self.console.print("[green]Successfully cleared all entries from the LLM prompt cache.[/green]")
+            return True
+        except sqlite3.Error as e:
+            self.console.print(f"[bright_red]SQLite Error clearing all cache entries: {e}[/bright_red]")
+            return False
+
     def close_connection(self) -> None:
         """Closes the database connection if it's open."""
         if self.conn:
@@ -292,6 +314,13 @@ You will output a json object with the following format:
 
     def periodic_cache_cleanup(self, days_to_keep: int = 30) -> None:
         self.cache_manager.remove_expired_entries(days_to_keep)
+
+    def clear_entire_cache(self) -> None:
+        """Clears all entries from the LLM prompt cache via the cache manager."""
+        if self.cache_manager:
+            self.cache_manager.clear_all_entries()
+        else:
+            self.console.print("[bright_red]Cache manager not initialized. Cannot clear cache.[/bright_red]")
 
 if __name__ == '__main__':
     console = Console()
