@@ -7,18 +7,18 @@ and console output.
 """
 import json
 import os
-import time 
+import time
 from dotenv import load_dotenv
 from rich.console import Console
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.formatted_text import HTML
-from typing import List, Dict, Any, Tuple, Optional, cast 
+from typing import List, Dict, Any, Tuple, Optional, cast
 
 from command_executor import CommandExecutor
-from llm_handler import LLMHandler 
-from app_config import load_config 
+from llm_handler import LLMHandler
+from app_config import load_config
 
 def change_directory(new_dir: str, console: Console) -> str:
     """
@@ -55,7 +55,7 @@ if __name__ == '__main__':
     console: Console = Console(color_system="256")
     
     try:
-        app_settings: Dict[str, Any] = load_config() 
+        app_settings: Dict[str, Any] = load_config()
         command_executor: CommandExecutor = CommandExecutor(console=console)
         llm_handler: LLMHandler = LLMHandler(
             console=console,
@@ -72,38 +72,42 @@ if __name__ == '__main__':
     prompt_history_file: str = os.path.join(os.path.expanduser('~'), app_settings.get("prompt_history_file", ".exterminal_history"))
     prompt_session: PromptSession[str] = PromptSession(
         HTML('<style fg="#d75faf">Exterminal > </style>'), # type: ignore
-        history=FileHistory(prompt_history_file), 
+        history=FileHistory(prompt_history_file),
         auto_suggest=AutoSuggestFromHistory(),
     )
     
-    messages_history: List[Dict[str, str]] = [] 
+    messages_history: List[Dict[str, str]] = []
     world_model: Dict[str, Any] = {}
     
     console.clear()
     console.rule("[b hot_pink2]Exterminal[/b hot_pink2]", style="dodger_blue1")
-    # ... (welcome messages)
+    # ... (welcome messages are implicitly handled by the main loop's first iteration message print)
+    console.print("[dodger_blue1 i][b hot_pink2]Exterminal[/b hot_pink2] is a smart terminal that can execute human-readable commands, remember information, answer questions, and more![/dodger_blue1 i]")
+    console.print("[dodger_blue1 i]Type any command to execute it or type '[u bright_red]exit[/u bright_red]' to exit. [/dodger_blue1 i]")
+    console.print("[dodger_blue1 i]Type '[u bright_red]clear[/u bright_red]' to clear the terminal. [/dodger_blue1 i]")
+    console.print("[dodger_blue1 i]Type '[u bright_red]help[/u bright_red]' to get help. [/dodger_blue1 i]")
+    console.print("")
 
     while True:
         try:
             current_user_input: str = prompt_session.prompt()
-            
+
             world_model['directory'] = os.getcwd()
             try:
-                world_model['directory_contents'] = os.listdir() 
+                world_model['directory_contents'] = os.listdir()
             except Exception as e_ls:
                 world_model['directory_contents'] = [f"Error listing directory: {e_ls}"]
-            
+
             messages_history.append({'role': 'user', 'content': current_user_input})
 
             if current_user_input.lower() in ["exit", "e", "quit", "q"]:
                 console.print("[dodger_blue1]Exiting [b hot_pink2]Exterminal[/b hot_pink2]...[/dodger_blue1]")
                 break
-            
-            # ... (other built-in commands like clear, wm, messages, help) ...
+
             if current_user_input.lower() in ["clear", "c", "cls"]:
                 console.clear()
                 console.rule("[b hot_pink2]Exterminal[/b hot_pink2]", style="dodger_blue1")
-                messages_history = [] 
+                messages_history = []
                 continue
             if not current_user_input.strip(): continue
             if current_user_input.lower() in ['wm', 'world_model', 'world']:
@@ -115,11 +119,10 @@ if __name__ == '__main__':
                 for msg in messages_history:
                      console.print(f"[b]{msg['role']}:[/b]")
                      try: content_data = json.loads(msg['content']); console.print_json(data=content_data)
-                     except: console.print(msg['content']) # noqa: E722
+                     except (json.JSONDecodeError, TypeError): console.print(msg['content'])
                 console.print("")
                 continue
             if current_user_input.lower() in ["help", "h", "?"]:
-                # ... (help message)
                 console.print("[dodger_blue1]Available Commands:[/dodger_blue1]")
                 console.print("- [hot_pink2]exit, e, quit, q[/hot_pink2]: Exit Exterminal.")
                 console.print("- [hot_pink2]clear, c, cls[/hot_pink2]: Clear the terminal screen.")
@@ -134,37 +137,50 @@ if __name__ == '__main__':
             if '--force-llm' in current_user_input:
                 current_user_input = current_user_input.replace('--force-llm', '').strip()
                 force_llm_query = True
-            
+
             llm_response_json: Optional[Dict[str, Any]] = llm_handler.get_llm_response(
-                messages_history=messages_history[:-1], 
-                current_user_input=current_user_input, 
+                messages_history=messages_history[:-1],
+                current_user_input=current_user_input,
                 world_model=world_model,
                 force_new_response=force_llm_query
             )
-            
-            if not llm_response_json or not isinstance(llm_response_json.get('commands'), list):
-                error_msg = "LLM did not return valid commands in the expected list format."
+
+            # Flexible extraction of command list
+            extracted_commands_list: Optional[List[str]] = None
+            if llm_response_json: # Ensure llm_response_json is not None
+                extracted_commands_list = llm_response_json.get('commands')
+                if not isinstance(extracted_commands_list, list):
+                    # Fallback to checking 'commands_planned' if 'commands' is not a list or not found
+                    extracted_commands_list = llm_response_json.get('commands_planned')
+
+            if not isinstance(extracted_commands_list, list): # Check again after potential fallback
+                error_msg = "LLM did not return commands in the expected list format (checked 'commands' and 'commands_planned')."
                 console.print(f"[bright_red]Error: {error_msg}[/bright_red]")
+                if llm_response_json: # Print the problematic response if it exists
+                    console.print(f"LLM Response (raw): {llm_response_json}")
                 messages_history.append({'role': 'assistant', 'content': json.dumps({'error': error_msg, 'raw_response': llm_response_json})})
                 continue
 
-            if 'world_model' in llm_response_json and isinstance(llm_response_json['world_model'], dict):
+            # At this point, extracted_commands_list is confirmed to be a list (it could be empty).
+            if llm_response_json and 'world_model' in llm_response_json and isinstance(llm_response_json['world_model'], dict):
                 world_model.update(llm_response_json['world_model'])
-            
+
+            llm_thoughts: str = llm_response_json.get("thoughts", "No thoughts provided.") if llm_response_json else "No thoughts (LLM response was null)."
             assistant_turn_content_dict: Dict[str, Any] = {
-                "thoughts": llm_response_json.get("thoughts", "No thoughts provided."), 
-                "commands_planned": llm_response_json['commands']
+                "thoughts": llm_thoughts,
+                "commands_planned": extracted_commands_list # Log the actually used command list
             }
-            if 'world_model' in llm_response_json and isinstance(llm_response_json['world_model'], dict):
+            if llm_response_json and 'world_model' in llm_response_json and isinstance(llm_response_json['world_model'], dict):
                 assistant_turn_content_dict["world_model_updates"] = llm_response_json['world_model']
             messages_history.append({'role': 'assistant', 'content': json.dumps(assistant_turn_content_dict)})
 
-            commands_to_process: List[str] = list(llm_response_json['commands'])
+            commands_to_process: List[str] = list(extracted_commands_list) # Use the validated list
             current_command_idx: int = 0
+            # ... (rest of the command processing loop remains the same) ...
             while current_command_idx < len(commands_to_process):
                 llm_command_full_str: str = commands_to_process[current_command_idx]
-                command_to_run_actual: str = "" 
-                command_type_str: str = "" 
+                command_to_run_actual: str = ""
+                command_type_str: str = ""
 
                 if isinstance(llm_command_full_str, str):
                     parts: List[str] = llm_command_full_str.split(":", 1)
@@ -181,24 +197,24 @@ if __name__ == '__main__':
                     messages_history.append({'role': 'system', 'content': f"Error: Invalid command object type '{type(llm_command_full_str)}'"})
                     current_command_idx += 1
                     continue
-                
+
                 if command_type_str == "EXECUTE" or command_type_str == "EXECUTE AND CONFIRM":
                     if command_type_str == "EXECUTE AND CONFIRM":
                         try:
                             confirm_ans: str = console.input(f"[dodger_blue1]Proceed with command: [hot_pink2]{command_to_run_actual}[/hot_pink2]? ([green1]y[/green1]/[bright_red]n[/bright_red])[/dodger_blue1]")
                         except KeyboardInterrupt:
                             console.print("[yellow]\nConfirmation cancelled by user.[/yellow]")
-                            confirm_ans = "n" 
-                        
+                            confirm_ans = "n"
+
                         if 'n' in confirm_ans.lower():
                             console.print("[yellow]Command skipped by user.[/yellow]")
                             messages_history.append({'role': 'system', 'content': f"Command SKIPPED by user: {command_to_run_actual}"})
                             current_command_idx += 1
                             continue
-                    
+
                     if command_to_run_actual.startswith("cd "):
                         target_dir: str = command_to_run_actual[3:].strip()
-                        cd_result: str = change_directory(target_dir, console) 
+                        cd_result: str = change_directory(target_dir, console)
                         messages_history.append({'role': 'system', 'content': f"COMMAND: {command_to_run_actual}\nOUTPUT: {cd_result}"})
                     else:
                         status, stdout, stderr = command_executor.execute_command(command_to_run_actual)
@@ -212,21 +228,21 @@ if __name__ == '__main__':
                             except KeyboardInterrupt:
                                 console.print("[yellow]\nFix attempt cancelled by user.[/yellow]")
                                 fix_ans_str = "n"
-                                
+
                             if 'y' in fix_ans_str.lower():
                                 fixed_cmd_suggestion, updated_cmds_list = llm_handler.attempt_to_fix_command(
                                     original_command=command_to_run_actual, error_output=stderr if stderr else status,
-                                    previous_llm_response_json=llm_response_json, failed_command_index=current_command_idx 
+                                    previous_llm_response_json=llm_response_json, failed_command_index=current_command_idx
                                 )
                                 if fixed_cmd_suggestion == "ANSWER":
                                     messages_history.append({'role': 'system', 'content': "LLM fix resulted in an explanation."})
-                                elif updated_cmds_list: 
+                                elif updated_cmds_list:
                                     messages_history.append({'role': 'system', 'content': f"LLM Fix: New command sequence: {updated_cmds_list}"})
-                                    commands_to_process = list(updated_cmds_list); current_command_idx = 0; continue 
-                                elif fixed_cmd_suggestion: 
+                                    commands_to_process = list(updated_cmds_list); current_command_idx = 0; continue
+                                elif fixed_cmd_suggestion:
                                     messages_history.append({'role': 'system', 'content': f"LLM Fix: Retrying '{command_to_run_actual}' as '{fixed_cmd_suggestion}'"})
                                     commands_to_process[current_command_idx] = f"{command_type_str}: {fixed_cmd_suggestion}"
-                                    continue 
+                                    continue
                                 else:
                                     messages_history.append({'role': 'system', 'content': "LLM fix attempt yielded no actionable command."})
                             else: messages_history.append({'role': 'system', 'content': "User opted not to fix error."})
@@ -240,29 +256,24 @@ if __name__ == '__main__':
                     console.print(f"[bright_red]Unknown command type from LLM: {command_type_str}[/bright_red]")
                     messages_history.append({'role': 'system', 'content': f"LLM output unknown command type: {command_type_str}"})
                 current_command_idx += 1
-            
+
             cache_config: Dict[str, Any] = cast(Dict[str, Any], app_settings.get("cache", {}))
-            cleanup_interval_seconds: int = cast(int, app_settings.get("periodic_cleanup_interval_seconds", 15*60)) 
-            if int(time.time()) % cleanup_interval_seconds == 0: 
+            cleanup_interval_seconds: int = cast(int, app_settings.get("periodic_cleanup_interval_seconds", 15*60))
+            if int(time.time()) % cleanup_interval_seconds == 0:
                 llm_handler.periodic_cache_cleanup(days_to_keep=int(cache_config.get('expire_days', 30)))
 
         except KeyboardInterrupt: # Catch Ctrl+C during LLM/Command processing parts of the loop
             console.print("[yellow]\nOperation interrupted by user. Returning to prompt.[/yellow]")
-            # Ensure any partial system/assistant message for this turn is handled or cleared if necessary.
-            # For now, just append a system message indicating interruption.
             messages_history.append({'role': 'system', 'content': 'User interrupted operation during command processing.'})
-            continue # Go to next prompt
-        except EOFError: # Catch Ctrl+D if it somehow bypasses prompt_session and occurs mid-loop
+            continue
+        except EOFError:
             console.print("[dodger_blue1]\nExiting Exterminal due to EOF...[/dodger_blue1]")
             break
-        except Exception as e_main_loop: # Catch-all for unexpected errors in the main processing loop
+        except Exception as e_main_loop:
             console.print(f"[bold bright_red]An unexpected error occurred in the main loop: {e_main_loop}[/bold bright_red]")
-            console.print_exception(show_locals=True, max_frames=2) # Print traceback for debugging
+            console.print_exception(show_locals=True, max_frames=2)
             messages_history.append({'role': 'system', 'content': f"FATAL ERROR in main loop: {e_main_loop}. Please check logs."})
-            # Optionally, decide if the loop should continue or break based on error severity
-            # For now, let's try to continue to the next prompt.
             console.print("[yellow]Attempting to recover. Please try a new command or 'exit'.[/yellow]")
             continue
-    
-    # Cleanup on exit (if any needed, e.g. llm_handler.close())
+
     console.print("[dim]Exterminal session ended.[/dim]")

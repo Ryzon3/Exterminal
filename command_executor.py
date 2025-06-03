@@ -10,7 +10,7 @@ import signal
 import ptyprocess # For PTY-specific exceptions, if any beyond generic OSError
 import select
 from rich.console import Console
-from typing import Tuple, List, Optional, Any 
+from typing import Tuple, List, Optional, Any
 
 class CommandExecutor:
     """
@@ -25,7 +25,7 @@ class CommandExecutor:
             console: The Rich Console object for output.
         """
         self.console: Console = console
-        self.interactive_commands: List[str] = ["python", "nano", "vim", "vi", "ssh", "htop"] 
+        self.interactive_commands: List[str] = ["python", "nano", "vim", "vi", "ssh", "htop"]
 
     def execute_command(self, command_str: str) -> Tuple[str, str, str]:
         """
@@ -67,27 +67,27 @@ class CommandExecutor:
                                     output_str: str = output_bytes.decode(errors='replace')
                                     self.console.print(output_str, end='')
                                     pty_stdout_capture.append(output_str)
-                                else: break 
-                            except EOFError: break 
+                                else: break
+                            except EOFError: break
                             except OSError as e_os_read: # Can happen if FD is closed during/before read
                                 self.console.print(f"[dim bright_red]PTY read OSError: {e_os_read}[/dim]")
-                                break 
+                                break
                 except Exception as e_thread:
                     self.console.print(f"[dim bright_red]PTY output thread error: {e_thread}[/dim]")
-                    pass 
+                    pass
 
             output_thread = threading.Thread(target=read_pty_output)
             output_thread.daemon = True
             output_thread.start()
 
             self.console.print(f"[yellow]Entering interactive session for '{command_str}'. Type Ctrl+D to exit (or command-specific exit).[/yellow]")
-            
+
             while pty_process and pty_process.isalive():
                 try:
                     rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
                     if rlist:
                         user_input: str = sys.stdin.readline()
-                        if not user_input: 
+                        if not user_input:
                             self.console.print("[yellow]Ctrl+D received, attempting to close PTY input.[/yellow]")
                             try:
                                 if pty_process.isalive(): pty_process.sendeof()
@@ -95,7 +95,7 @@ class CommandExecutor:
                                 self.console.print(f"[dim bright_red]Error sending EOF to PTY (OSError): {e_sendeof}[/dim]")
                             except Exception as e_eof_generic:
                                 self.console.print(f"[bright_red]Error sending EOF to PTY: {e_eof_generic}[/bright_red]")
-                            break 
+                            break
                         if pty_process.isalive(): pty_process.write(user_input.encode())
                 except KeyboardInterrupt:
                     self.console.print("[yellow]Ctrl+C received, sending SIGINT to PTY process.[/yellow]")
@@ -103,40 +103,40 @@ class CommandExecutor:
                         if pty_process.isalive(): pty_process.sendintr()
                     except Exception as e_intr:
                         self.console.print(f"[bright_red]Error sending SIGINT to PTY: {e_intr}[/bright_red]")
-                except EOFError: 
+                except EOFError:
                     self.console.print("[yellow]EOFError on stdin, exiting interactive session.[/yellow]")
                     break
                 except IOError as e_io_input: # Catch specific I/O errors on input
                     self.console.print(f"[bright_red]Input forwarding I/O error: {e_io_input}[/bright_red]")
                     break
-                except Exception as e_input_generic: 
+                except Exception as e_input_generic:
                     self.console.print(f"[bright_red]Input forwarding error: {e_input_generic}[/bright_red]")
                     break
-            
+
             self.console.print(f"\n[yellow]Interactive session for '{command_str}' ended.[/yellow]")
-            
+
             exit_status: Optional[int] = -1 # Default if wait fails or pty_process is None
             if pty_process:
                 if pty_process.isalive():
                     try:
-                        pty_process.close(force=True) 
+                        pty_process.close(force=True)
                     except Exception as e_close_pty: # ptyprocess might raise errors on close
                         self.console.print(f"[dim bright_red]Error during PTY close: {e_close_pty}[/dim]")
                 try:
-                    exit_status = pty_process.wait() 
+                    exit_status = pty_process.wait()
                 except ptyprocess.PtyProcessError as e_wait: # Catch error during wait
                      self.console.print(f"[dim bright_red]Error waiting for PTY process: {e_wait}[/dim]")
 
 
             if output_thread and output_thread.is_alive():
                 output_thread.join(timeout=0.5) # Shorter timeout for cleanup
-            
+
             final_pty_output: str = "".join(pty_stdout_capture)
             if exit_status == 0:
                 return f"Interactive command '{command_str}' finished.", final_pty_output, ""
             else:
                 return f"Interactive command '{command_str}' finished with exit code {exit_status}.", final_pty_output, ""
-        
+
         except FileNotFoundError as e_fnf: # Command not found
             self.console.print(f"[bright_red]Error: Command '{command_parts[0]}' not found for PTY execution: {e_fnf}[/bright_red]")
             return f"Error: Command not found '{command_parts[0]}'.", "", str(e_fnf)
@@ -150,7 +150,7 @@ class CommandExecutor:
             self.console.print(f"[bright_red]Generic PTY execution error for '{command_str}': {e_generic_pty}[/bright_red]")
             if pty_process and pty_process.isalive():
                 try: pty_process.close(force=True)
-                except: pass 
+                except: pass
             if output_thread and output_thread.is_alive(): output_thread.join(timeout=0.5)
             return f"Error running interactive command '{command_str}': {str(e_generic_pty)}", "".join(pty_stdout_capture), str(e_generic_pty)
         finally:
@@ -163,15 +163,15 @@ class CommandExecutor:
         process: Optional[subprocess.Popen[str]] = None
         full_stdout_list: List[str] = []
         full_stderr_list: List[str] = []
-        
+
         try:
             self.console.print(f"[dodger_blue1]Running command:[/dodger_blue1] [hot_pink2]{command_str}[/hot_pink2]")
-            
+
             process = subprocess.Popen(
-                command_str, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                command_str, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                 text=True, bufsize=1, executable="/bin/bash" # Explicitly use bash
             )
-            
+
             if process.stdout:
                 for line in iter(process.stdout.readline, ''):
                     self.console.print(f"[dodger_blue1]Output:[/dodger_blue1] {line.strip()}")
@@ -197,7 +197,7 @@ class CommandExecutor:
             else:
                 error_msg_detail: str = stderr_str if stderr_str else f"Command failed with return code {process.returncode} and no error output."
                 return f"Command failed with return code {process.returncode}.", stdout_str, error_msg_detail
-        
+
         except FileNotFoundError as e_fnf_sub: # For shell=True, this is less likely for the command itself, but good practice
              self.console.print(f"[bright_red]Error: Command not found during subprocess execution: {e_fnf_sub}. This might indicate an issue with the shell or command path.[/bright_red]")
              return f"Error: Command not found for '{command_str}'.", "", str(e_fnf_sub)
@@ -208,11 +208,11 @@ class CommandExecutor:
             self.console.print("[yellow]Keyboard interrupt during subprocess execution (caught in executor).[/yellow]")
             stdout_str_kb: str = "".join(full_stdout_list)
             stderr_str_kb: str = "".join(full_stderr_list)
-            if process and process.poll() is None: 
+            if process and process.poll() is None:
                 self.console.print("[yellow]Attempting to interrupt subprocess...[/yellow]")
                 try:
                     process.send_signal(signal.SIGINT)
-                    process.wait(timeout=5) 
+                    process.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     self.console.print("[yellow]Subprocess SIGINT timeout, sending SIGTERM...[/yellow]")
                     process.send_signal(signal.SIGTERM)
@@ -222,13 +222,13 @@ class CommandExecutor:
                         process.kill()
                     except Exception as e_term: self.console.print(f"[bright_red]Error during SIGTERM: {e_term}[/bright_red]")
                 except Exception as e_int: self.console.print(f"[bright_red]Error during SIGINT: {e_int}[/bright_red]")
-                
+
                 if process.stdout and not process.stdout.closed: process.stdout.close()
                 if process.stderr and not process.stderr.closed: process.stderr.close()
                 return "Command interrupted by user.", stdout_str_kb, stderr_str_kb
-            elif process: 
+            elif process:
                  return "Command finished before interrupt handling.", stdout_str_kb, stderr_str_kb
-            else: 
+            else:
                 return "Command execution aborted by user (no process).", stdout_str_kb, stderr_str_kb
         except Exception as e_generic_sub:
             self.console.print(f"[bright_red]Unexpected error during subprocess execution ('{command_str}'): {e_generic_sub}[/bright_red]")
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     test_console.print(f"\n[b]Status:[/b] {status}")
     if stdout: test_console.print(f"[dim]Captured stdout length: {len(stdout)}[/dim]")
     if stderr: test_console.print(f"[dim]Captured stderr length: {len(stderr)}[/dim]")
-    
+
     test_console.rule("Test 3: Command not found (non-interactive)")
     status, stdout, stderr = executor.execute_command("somecommandthatdoesnotexist123")
     test_console.print(f"\n[b]Status:[/b] {status}") # Should indicate error from shell

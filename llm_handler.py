@@ -10,7 +10,7 @@ import openai # Import the base openai module for its error types
 from openai import OpenAI # Client
 from openai.types.chat import ChatCompletion
 from rich.console import Console
-from typing import List, Dict, Optional, Tuple, Any 
+from typing import List, Dict, Optional, Tuple, Any
 
 # --- PromptCacheManager Class ---
 class PromptCacheManager:
@@ -34,16 +34,16 @@ class PromptCacheManager:
             self.conn = sqlite3.connect(db_path)
             self.cursor = self.conn.cursor()
             self.cursor.execute('''CREATE TABLE IF NOT EXISTS prompt_cache
-                                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                                  prompt TEXT UNIQUE, 
-                                  response TEXT, 
+                                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                  prompt TEXT UNIQUE,
+                                  response TEXT,
                                   last_accessed TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
             self.conn.commit()
         except sqlite3.Error as e:
             self.console.print(f"[bright_red]SQLite Error initializing PromptCacheManager ({db_name}): {e}[/bright_red]")
             if self.conn:
-                self.conn.close() 
-            self.conn = None 
+                self.conn.close()
+            self.conn = None
             self.cursor = None
 
     def save_prompt(self, prompt: str, response: str) -> None:
@@ -82,7 +82,7 @@ class PromptCacheManager:
         try:
             self.cursor.execute("SELECT id, response FROM prompt_cache WHERE UPPER(prompt)=UPPER(?)", (prompt,))
             result: Optional[tuple[int, str]] = self.cursor.fetchone()
-            
+
             if result:
                 cache_id, response_str = result
                 self.cursor.execute("UPDATE prompt_cache SET last_accessed = ? WHERE id = ?", (time.time(), cache_id))
@@ -138,13 +138,13 @@ class LLMHandler:
         self.temperature: float = temperature
         self.system_prompt: str = system_prompt
         try:
-            self.client: OpenAI = OpenAI() 
+            self.client: OpenAI = OpenAI()
         except openai.OpenAIError as e: # More general OpenAI client init error
             self.console.print(f"[bright_red]Failed to initialize OpenAI client: {e}. Check API key and environment.[/bright_red]")
             # Potentially re-raise or set client to None and handle in methods
             raise # Re-raise for now, main.py might catch it or exit
         self.cache_manager: PromptCacheManager = PromptCacheManager(console, db_name=cache_db_name)
-        
+
         self.error_fix_system_prompt: str = '''
 You are a repair technician for Exterminal. Your job is to fix any errors that occur while running commands in the terminal.
 You will only be able to fix errors that are caused by the commands themselves, not user errors.
@@ -158,8 +158,8 @@ You will be given 3 things as input:
 You will output a json object with the following format:
 {
     "thoughts": "Your thoughts on the error and how to fix it",
-    "commands": [ 
-        "EXECUTE: command1", 
+    "commands": [
+        "EXECUTE: command1",
         "EXECUTE AND CONFIRM: command2",
         "ANSWER: Your explanation if not fixable"
     ]
@@ -174,7 +174,7 @@ You will output a json object with the following format:
                 response: ChatCompletion = self.client.chat.completions.create(
                     model=self.model_name,
                     response_format={"type": "json_object"},
-                    messages=messages_for_llm, # type: ignore 
+                    messages=messages_for_llm, # type: ignore
                     temperature=self.temperature
                 )
             output_text = response.choices[0].message.content
@@ -207,22 +207,22 @@ You will output a json object with the following format:
             return None
 
 
-    def get_llm_response(self, 
-                         messages_history: List[Dict[str, str]], 
-                         current_user_input: str, 
-                         world_model: Dict[str, Any], 
+    def get_llm_response(self,
+                         messages_history: List[Dict[str, str]],
+                         current_user_input: str,
+                         world_model: Dict[str, Any],
                          force_new_response: bool = False) -> Optional[Dict[str, Any]]:
         if not force_new_response:
             cached_output: Optional[Dict[str, Any]] = self.cache_manager.get_cached_response(current_user_input)
             if cached_output:
                 self.console.print("[dim]Using cached LLM response.[/dim]")
                 return cached_output
-        
-        temp_history = messages_history[:] 
+
+        temp_history = messages_history[:]
         # Basic character count trimming, TODO: use token counting
-        while sum(len(msg.get('content', '')) for msg in temp_history) > 50000: 
+        while sum(len(msg.get('content', '')) for msg in temp_history) > 50000:
             if len(temp_history) > 0: temp_history.pop(0)
-            else: break 
+            else: break
 
         user_message_content: str = f"WORLD_MODEL:\n{json.dumps(world_model)}\n\nUSER_INPUT:\n{current_user_input}"
         full_messages_for_llm: List[Dict[str, str]] = [
@@ -230,7 +230,7 @@ You will output a json object with the following format:
         ] + temp_history + [{'role': 'user', 'content': user_message_content}]
 
         parsed_output = self._make_llm_api_call(full_messages_for_llm, "main Exterminal query")
-        
+
         if parsed_output and isinstance(parsed_output.get("commands"), list): # Basic validation of response structure
             # Cache the raw JSON string that led to the parsed_output
             # This assumes _make_llm_api_call would return the raw string if we needed to save it,
@@ -248,10 +248,10 @@ You will output a json object with the following format:
         return None
 
 
-    def attempt_to_fix_command(self, 
-                               original_command: str, 
-                               error_output: str, 
-                               previous_llm_response_json: Dict[str, Any], 
+    def attempt_to_fix_command(self,
+                               original_command: str,
+                               error_output: str,
+                               previous_llm_response_json: Dict[str, Any],
                                failed_command_index: int) -> Tuple[Optional[str], Optional[List[str]]]:
         self.console.print("[yellow]Attempting to auto-fix the error...[/yellow]")
         repair_messages: List[Dict[str, str]] = [
@@ -260,12 +260,12 @@ You will output a json object with the following format:
             {'role': 'user', 'content': f"The following error occurred when trying to execute a command:\n{error_output}"},
             {'role': 'user', 'content': f"The command that failed was (index {failed_command_index}):\n{original_command}"},
         ]
-        
+
         fixed_output = self._make_llm_api_call(repair_messages, "error fix query")
 
         if not fixed_output:
             return None, None # Error already printed by _make_llm_api_call
-            
+
         new_commands_sequence: Optional[List[str]] = fixed_output.get("commands")
         if not new_commands_sequence or not isinstance(new_commands_sequence, list) or not new_commands_sequence:
             self.console.print("[yellow]LLM fix did not provide a valid new command sequence.[/yellow]")
@@ -273,7 +273,7 @@ You will output a json object with the following format:
 
         if "ANSWER:" in new_commands_sequence[0]:
              self.console.print(f"[yellow]LLM Fix Response:[/yellow] {new_commands_sequence[0].replace('ANSWER: ', '').strip()}")
-             return "ANSWER", new_commands_sequence 
+             return "ANSWER", new_commands_sequence
 
         suggested_command_str_at_index: Optional[str] = None
         if failed_command_index < len(new_commands_sequence):
@@ -284,7 +284,7 @@ You will output a json object with the following format:
                 suggested_command_str_at_index = raw_cmd_from_llm[len(cmd_prefix_exec):]
             elif raw_cmd_from_llm.startswith(cmd_prefix_confirm):
                 suggested_command_str_at_index = raw_cmd_from_llm[len(cmd_prefix_confirm):]
-        
+
         self.console.print("[green1]LLM proposed a fix.[/green1]")
         if fixed_output.get("thoughts"):
              self.console.print(f"[dim]Fixer thoughts: {fixed_output['thoughts']}[/dim]")
@@ -298,14 +298,14 @@ if __name__ == '__main__':
     system_prompt_content_for_test: str = "You are a helpful assistant outputting JSON."
     # ... (rest of __main__ remains for testing, ensure it uses updated methods) ...
     try:
-        with open("system_prompt.txt", "r") as f: 
+        with open("system_prompt.txt", "r") as f:
             system_prompt_content_for_test = f.read()
     except FileNotFoundError:
         console.print("[yellow]system_prompt.txt not found for test, using basic fallback.[/yellow]")
 
     try:
         llm_handler = LLMHandler(console, model_name="gpt-4o", temperature=0, system_prompt=system_prompt_content_for_test)
-        
+
         console.rule("Test 1: Get LLM Response (mocked messages)")
         # ... (tests as before)
     except openai.OpenAIError as e:
