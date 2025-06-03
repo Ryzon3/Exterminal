@@ -13,7 +13,7 @@ from prompt_toolkit.formatted_text import HTML
 import sqlite3
 import time
 
-model_name = "gpt-4o"
+model_name = "gpt-4.1-nano"
 
 class PromptCacheManager:
     def __init__(self, db_name='.exterminal_cache.db'):
