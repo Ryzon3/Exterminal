@@ -1,0 +1,7 @@
+llm:
+  model_name: "gpt-4o"
+  temperature: 0.0
+  system_prompt_file: "system_prompt.txt" # Added this line
+cache:
+  db_name: ".exterminal_cache.db"
+  expire_days: 30
